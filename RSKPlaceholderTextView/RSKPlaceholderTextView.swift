@@ -37,10 +37,12 @@ import UIKit
                 placeholderAttributes[NSParagraphStyleAttributeName] = typingParagraphStyle
             }
         }
-        placeholderAttributes[NSForegroundColorAttributeName] = placeholderColor
+        placeholderAttributes[NSForegroundColorAttributeName] = self.isActive ? placeholderActiveColor : placeholderDefaultColor
         
         return placeholderAttributes
     }
+    
+    private var isActive = false
     
     private var placeholderInsets: UIEdgeInsets {
         let placeholderInsets = UIEdgeInsets(top: contentInset.top + textContainerInset.top,
@@ -69,6 +71,10 @@ import UIKit
     /// Determines whether or not the placeholder text view contains text.
     open var isEmpty: Bool { return text.isEmpty }
     
+    /// Trim white space and newline characters when end editing
+    
+    @IBInspectable open var trimWhiteSpaceWhenEndEditing: Bool = true
+    
     /// The string that is displayed when there is no other text in the placeholder text view. This value is `nil` by default.
     @IBInspectable open var placeholder: NSString? {
         get {
@@ -84,12 +90,42 @@ import UIKit
     }
     
     /// The color of the placeholder. This property applies to the entire placeholder string. The default placeholder color is `UIColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1.0)`.
-    @IBInspectable open var placeholderColor: UIColor = UIColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1.0) {
+    @IBInspectable open var placeholderDefaultColor: UIColor = UIColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1.0) {
         didSet {
             if let placeholder = placeholder as String? {
                 attributedPlaceholder = NSAttributedString(string: placeholder, attributes: placeholderAttributes)
             }
         }
+    }
+    
+    @IBInspectable open var placeholderActiveColor: UIColor = UIColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1.0) {
+        didSet {
+            if let placeholder = placeholder as String? {
+                attributedPlaceholder = NSAttributedString(string: placeholder, attributes: placeholderAttributes)
+            }
+        }
+    }
+    
+    @IBInspectable open var cornerRadius: CGFloat = 0 {
+        didSet { setNeedsDisplay() }
+    }
+    @IBInspectable open var borderWidth: CGFloat = 0 {
+        didSet { setNeedsDisplay() }
+    }
+    @IBInspectable open var borderWidthActive: CGFloat = 0 {
+        didSet { setNeedsDisplay() }
+    }
+    @IBInspectable open var borderColor: UIColor = UIColor(white: 0.8, alpha: 1.0) {
+        didSet { setNeedsDisplay() }
+    }
+    @IBInspectable open var borderActiveColor: UIColor = UIColor(white: 0.8, alpha: 1.0) {
+        didSet { setNeedsDisplay() }
+    }
+    @IBInspectable open var attributedPlaceHolder: NSAttributedString? {
+        didSet { setNeedsDisplay() }
+    }
+    @IBInspectable open var placeHolderLeftMargin: CGFloat = 5 {
+        didSet { setNeedsDisplay() }
     }
     
     // MARK: - Superclass Properties
@@ -180,6 +216,16 @@ import UIKit
         
         let placeholderRect = UIEdgeInsetsInsetRect(rect, placeholderInsets)
         attributedPlaceholder.draw(in: placeholderRect)
+        
+        /// My changes
+        
+        self.layer.borderWidth = self.isActive ? self.borderWidthActive : self.borderWidth
+        self.layer.borderColor = self.isActive ? self.borderActiveColor.cgColor : self.borderColor.cgColor
+        self.layer.shadowColor = UIColor(red: 13/255.0, green: 21/255.0, blue: 38/255.0, alpha: 0.2).cgColor
+        self.layer.shadowOffset = CGSize(width: 0, height: self.isActive ? 5.0 : 0)
+        self.layer.shadowOpacity = self.isActive ? 1.0 : 0
+        self.layer.cornerRadius = self.cornerRadius
+        self.tintColor = self.borderActiveColor
     }
     
     // MARK: - Helper Methods
@@ -187,11 +233,32 @@ import UIKit
     private func commonInitializer() {
         contentMode = .topLeft
         NotificationCenter.default.addObserver(self, selector: #selector(RSKPlaceholderTextView.handleTextViewTextDidChangeNotification(_:)), name: NSNotification.Name.UITextViewTextDidChange, object: self)
+        NotificationCenter.default.addObserver(self, selector: #selector(RSKPlaceholderTextView.handleTextViewTextDidBeginEditingNotification(_:)), name: NSNotification.Name.UITextViewTextDidBeginEditing, object: self)
+        NotificationCenter.default.addObserver(self, selector: #selector(RSKPlaceholderTextView.handleTextViewTextDidEndEditingNotification(_:)), name: NSNotification.Name.UITextViewTextDidEndEditing, object: self)
     }
     
     internal func handleTextViewTextDidChangeNotification(_ notification: Notification) {
         guard let object = notification.object as? RSKPlaceholderTextView, object === self else {
             return
+        }
+        setNeedsDisplay()
+    }
+    
+    internal func handleTextViewTextDidBeginEditingNotification(_ notification: Notification) {
+        guard let object = notification.object as? RSKPlaceholderTextView, object === self else {
+            return
+        }
+        self.isActive = true
+        setNeedsDisplay()
+    }
+    
+    internal func handleTextViewTextDidEndEditingNotification(_ notification: Notification) {
+        guard let object = notification.object as? RSKPlaceholderTextView, object === self else {
+            return
+        }
+        self.isActive = false
+        if trimWhiteSpaceWhenEndEditing {
+            text = text?.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         setNeedsDisplay()
     }
